@@ -1,11 +1,11 @@
 {
 	"name": "electric_transport_belts",
-	"version": "0.14.0",
+	"version": "0.14.1",
 	"factorio_version": "0.14",
 	"title": "Electric Transport Belts",
 	"author": "Zinal",
 	"contact": "",
 	"homepage": "",
-	"description": "",
+	"description": "All transport belts now require energy to operate",
 	"dependencies": ["base >= 0.14.0"]
 }

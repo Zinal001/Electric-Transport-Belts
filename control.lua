@@ -1,12 +1,16 @@
 
 function on_init()
+	--game.print("On Init!")
 	if global == nil then
 		global = {}
 	end
 	
 	if global.belts == nil then
 		global.belts = {}
-	end
+	end	
+	
+	script.on_event(defines.events.on_tick, on_first_game_tick)
+	
 end
 
 function on_load()
@@ -14,7 +18,7 @@ function on_load()
 end
 
 function on_configuration_changed()
-	
+	--game.print("On Configuration Changed!")
 	local belts = {}
 	
 	for id, data in pairs(global.belts) do
@@ -24,16 +28,33 @@ function on_configuration_changed()
 			local ent = surface.find_entity(data.name, data.position)
 			
 			if ent ~= nil and ent.valid then
-				local eng = surface.find_entity("transport-belt-energy", data.position)
+				local eng = surface.find_entity("transport-belt-energy", data.eng_pos)
 				
 				if eng ~= nil and eng.valid then
 					belts[id] = data
 				end
 			end
-		end
+		end		
 	end
 	
 	global.belts = belts
+end
+
+function on_first_game_tick(event)
+	for i, surface in pairs(game.surfaces) do
+		local belts = surface.find_entities_filtered({
+			type = "transport-belt"
+		})
+		
+		if #belts > 0 then
+			for j, belt in pairs(belts) do
+				on_built(belt)
+			end
+		end
+	end
+	
+	--game.print("Ran on_first_game_tick")
+	script.on_event(defines.events.on_tick, on_tick)
 end
 
 function on_first_load_tick(event)
@@ -64,10 +85,19 @@ end
 
 function on_tick(event)
 		
+	local checked = 0	
+	
 	for id, data in pairs(global.belts) do
+		
+		if checked >= 50 then
+			break
+		end
+	
 		if data ~= nil then
 			if data.tick <= 0 then
+				--game.print("Checking " .. id)
 				global.belts[id].tick = 20
+				checked = checked + 1
 				
 				local surface = game.surfaces[data.surface]
 				
@@ -81,7 +111,7 @@ function on_tick(event)
 					})
 				
 					if eng ~= nil and eng.valid then
-						if eng.energy <= 0 then
+						if eng.energy <= 1 then
 							if ent.active then
 								--game.print("Turning off Entity")
 							end
@@ -168,6 +198,7 @@ function on_built(entity)
 		
 		--game.print("Eng created " .. id)
 		
+		--game.print("Added " .. id .. " to global")
 		global.belts[id] = {
 			name = entity.name,
 			position = entity.position,

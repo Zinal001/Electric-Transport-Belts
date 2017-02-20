@@ -3,7 +3,7 @@ data:extend({
 	{
 		type = "lamp",
 		name = "transport-belt-energy",
-		icon = "__base__/graphics/icons/small-lamp.png",
+		icon = "__base__/graphics/icons/transport-belt.png",
 		collision_mask = {"not-colliding-with-itself", "water-tile"},
 		flags = {"placeable-off-grid", "not-deconstructable"},
 		order = "z",
