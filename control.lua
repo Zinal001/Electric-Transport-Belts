@@ -1,12 +1,20 @@
 
+function debugPrint(text)
+	if global.DEBUG then
+		game.print("[DEBUG] " .. text)
+	end
+end
+
 function on_init()
-	--game.print("On Init!")
+	debugPrint("On Init!")
 	if global == nil then
 		global = {}
 	end
 	
-	if global.belts == nil then
-		global.belts = {}
+	global.DEBUG = false
+	
+	if global.entities == nil then
+		global.entities = {}
 	end	
 	
 	script.on_event(defines.events.on_tick, on_first_game_tick)
@@ -18,26 +26,46 @@ function on_load()
 end
 
 function on_configuration_changed()
-	--game.print("On Configuration Changed!")
-	local belts = {}
+	global.DEBUG = false
+	debugPrint("On Configuration Changed!")
 	
-	for id, data in pairs(global.belts) do
+	--Fix for Version 0.14.1--
+	if global.belts ~= nil then
+		game.print("Overriding global.belts to global.entities")
+		
+		local numEnts = 0
+		global.entities = {}
+		for id, data in pairs(global.belts) do
+			global.entities[id] = data
+			global.entities[id].type = "transport-belt"
+			numEnts = numEnts + 1
+		end
+		
+		global.belts = nil
+	end
+	
+	local entities = {}
+	numEnts = 0
+	for id, data in pairs(global.entities) do
 		if data ~= nil then
 			local surface = game.surfaces[data.surface]
 				
 			local ent = surface.find_entity(data.name, data.position)
 			
 			if ent ~= nil and ent.valid then
-				local eng = surface.find_entity("transport-belt-energy", data.eng_pos)
+				local eng = get_entity_exact(data.name, surface, data.eng_pos.x, data.eng_pos.y)
 				
 				if eng ~= nil and eng.valid then
-					belts[id] = data
+					entities[id] = data
+					numEnts = numEnts + 1
+				else
+					debugPrint("Missing " .. data.type .. "-energy on " .. id)
 				end
 			end
 		end		
 	end
-	
-	global.belts = belts
+	debugPrint(numEnts .. " found")
+	global.entities = entities
 end
 
 function on_first_game_tick(event)
@@ -51,35 +79,46 @@ function on_first_game_tick(event)
 				on_built(belt)
 			end
 		end
+		
+		local loaders = surface.find_entities_filtered({
+			type = "loader"
+		})
+		
+		if #loaders > 0 then
+			for j, loader in pairs(loaders) do
+				on_built(loader)
+			end
+		end
+		
 	end
 	
-	--game.print("Ran on_first_game_tick")
+	debugPrint("Ran on_first_game_tick")
 	script.on_event(defines.events.on_tick, on_tick)
 end
 
 function on_first_load_tick(event)
 	
-	local belts = {}
+	local entities = {}
 	
-	for id, data in pairs(global.belts) do
+	for id, data in pairs(global.entities) do
 		if data ~= nil then
 			local surface = game.surfaces[data.surface]
 				
 			local ent = surface.find_entity(data.name, data.position)
 			
 			if ent ~= nil and ent.valid then
-				local eng = surface.find_entity("transport-belt-energy", data.position)
+				local eng = get_entity_exact(data.name, surface, data.eng_pos.x, data.eng_pos.y)
 				
 				if eng ~= nil and eng.valid then
-					belts[id] = data
+					entities[id] = data
 				end
 			end
 		end
 	end
 	
-	local removed = #global.belts - #belts
-	global.belts = belts
-	--game.print("Ran on_first_load_tick. Removed: " .. removed)
+	local removed = #global.entities - #entities
+	global.entities = entities
+	debugPrint("Ran on_first_load_tick. Removed: " .. removed)
 	script.on_event(defines.events.on_tick, on_tick)
 end
 
@@ -87,7 +126,7 @@ function on_tick(event)
 		
 	local checked = 0	
 	
-	for id, data in pairs(global.belts) do
+	for id, data in pairs(global.entities) do
 		
 		if checked >= 50 then
 			break
@@ -95,64 +134,59 @@ function on_tick(event)
 	
 		if data ~= nil then
 			if data.tick <= 0 then
-				--game.print("Checking " .. id)
-				global.belts[id].tick = 20
+				debugPrint("Checking " .. id)
+				global.entities[id].tick = 20
 				checked = checked + 1
 				
 				local surface = game.surfaces[data.surface]
 				
 				local ent = surface.find_entity(data.name, data.position)
-				local eng = get_entity_exact("transport-belt-energy", surface, data.eng_pos.x, data.eng_pos.y)
+				local eng = get_entity_exact(data.type .. "-energy", surface, data.eng_pos.x, data.eng_pos.y)
 				
-				if ent ~= nil and ent.valid then
-					local engs = surface.find_entities_filtered({
-						area = {{data.eng_pos.x - 1,data.eng_pos.y - 1}, {data.eng_pos.x + 1,data.eng_pos.y + 1}},
-						name = "transport-belt-energy"
-					})
-				
+				if ent ~= nil and ent.valid then				
 					if eng ~= nil and eng.valid then
 						if eng.energy <= 1 then
 							if ent.active then
-								--game.print("Turning off Entity")
+								debugPrint("Turning off Entity")
 							end
 							
 							ent.active = false
 						else
 							if not ent.active then
-								--game.print("Turning on Entity")
+								debugPrint("Turning on Entity")
 							end
 							
-							fix_entities_stuck(ent.surface, ent.position.x, ent.position.y)
+							fix_entities_stuck(ent.surface, ent.type, ent.position.x, ent.position.y)
 							
 							ent.active = true
 						end
 						
 					else
-						global.belts[id] = nil
-						--game.print("[on_tick 1] Unable to find " .. id)
+						global.entities[id] = nil
+						debugPrint("[on_tick 1] Unable to find " .. id)
 					end
 				else
 					
-					--game.print("[on_tick 2] Unable to find " .. id)
+					debugPrint("[on_tick 2] Unable to find " .. id)
 					if eng ~= nil and eng.valid then
-						--game.print("Removed eng")
+						debugPrint("Removed eng")
 						eng.destroy()
 					end
 				
-					global.belts[id] = nil
+					global.entities[id] = nil
 				end
 			else
-				global.belts[id].tick = global.belts[id].tick - 1
+				global.entities[id].tick = global.entities[id].tick - 1
 			end
 		end	
 	end
 	
 end
 
-function fix_entities_stuck(surface, x, y)
+function fix_entities_stuck(surface, type, x, y)
 	local ents = surface.find_entities_filtered({
 		area = {{x - 2, y - 2}, {x + 2, y + 2}},
-		type = "transport-belt"
+		type = type
 	})
 	
 	for k, ent in pairs(ents) do
@@ -186,21 +220,21 @@ end
 
 
 function on_built(entity)
-	if entity.type == "transport-belt" then
+
+	if entity.type == "transport-belt" or entity.type == "loader" then
 	
 		local id = get_entity_id(entity)
 		
 		local eng = entity.surface.create_entity({
-			name = "transport-belt-energy",
+			name = entity.type .. "-energy",
 			position = entity.position,
 			force = entity.force
 		})
 		
-		--game.print("Eng created " .. id)
-		
-		--game.print("Added " .. id .. " to global")
-		global.belts[id] = {
+		debugPrint("Added " .. id .. " to global")
+		global.entities[id] = {
 			name = entity.name,
+			type = entity.type,
 			position = entity.position,
 			surface = entity.surface.name,
 			eng_pos = eng.position,
@@ -211,11 +245,11 @@ function on_built(entity)
 end
 
 function on_died(entity)
-	if entity.type == "transport-belt" then
+	if entity.type == "transport-belt" or entity.type == "loader" then
 		local id = get_entity_id(entity)
-		--game.print("Destroyed " .. id)
+		debugPrint("Destroyed " .. id)
 		
-		local data = global.belts[id]
+		local data = global.entities[id]
 		
 		local pos = entity.position
 		
@@ -223,16 +257,16 @@ function on_died(entity)
 			pos = data.eng_pos
 		end
 		
-		local eng = get_entity_exact("transport-belt-energy", entity.surface, pos.x, pos.y)
+		local eng = get_entity_exact(entity.type .. "-energy", entity.surface, pos.x, pos.y)
 		
 		if eng ~= nil and eng.valid then
 			eng.destroy()
 		else
-			--game.print("[on_died] Unable to find " .. id .. ", " .. tostring(data))
+			debugPrint("[on_died] Unable to find " .. id .. ", " .. tostring(data))
 		end
 		
-		if global.belts[id] ~= nil then
-			global.belts[id] = nil
+		if global.entities[id] ~= nil then
+			global.entities[id] = nil
 		end
 	end
 end
