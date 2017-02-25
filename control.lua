@@ -550,6 +550,52 @@ end
 
 function on_configuration_changed(event)
 	SetupGlobal(event)
+	
+	if event.mod_changes ~= nil and event.mod_changes["electric_transport_belts"] ~= nil then
+		local change = event.mod_changes["electric_transport_belts"]
+		
+		if change.new_version ~= nil and change.new_version == "0.14.3" then
+			global = {}
+				
+			for _, surface in pairs(game.surfaces) do
+			
+				local ents = surface.find_entities_filtered({
+					name = "transport-belt-energy"
+				})
+				
+				if #ents > 0 then
+					for _, ent in pairs(ents) do
+						ent.destroy()
+					end
+				end
+				
+				ents = surface.find_entities_filtered({
+					name = "loader-energy"
+				})
+				
+				if #ents > 0 then
+					for _, ent in pairs(ents) do
+						ent.destroy()
+					end
+				end
+			
+				ents = surface.find_entities_filtered({
+					type = "transport-belt"
+				})
+				
+				if #ents > 0 then
+					for _, ent in pairs(ents) do
+						ent.active = false
+					end
+				end
+			
+			end
+			
+			SetupGlobal(nil)
+		end
+	end
+	
+	
 end
 
 function on_built_entity(event)
